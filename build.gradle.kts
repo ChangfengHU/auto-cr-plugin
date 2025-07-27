@@ -26,7 +26,7 @@ intellij {
     version.set("2024.2.5")
     type.set("IC") // IntelliJ IDEA Community Edition
 
-    plugins.set(listOf(/* Plugin Dependencies */))
+    plugins.set(listOf("vcs-git"))
 }
 
 tasks {
