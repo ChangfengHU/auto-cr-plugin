@@ -1,0 +1,55 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.vyibc.auto-cr-plugin</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>Translation Plugin</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://www.vyibc.com">VYIBC</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description><![CDATA[
+    A powerful translation plugin for IntelliJ IDEA that allows you to translate selected text directly in the editor.<br>
+    <em>Features:</em>
+    <ul>
+        <li>Translate selected text with right-click context menu</li>
+        <li>Support for multiple languages</li>
+        <li>Configurable translation settings</li>
+        <li>Beautiful translation result dialog</li>
+    </ul>
+  ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- 注册设置页面 -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.vyibc.autocrplugin.settings.TranslationConfigurable"
+            id="com.vyibc.autocrplugin.settings.TranslationConfigurable"
+            displayName="Translation Settings"/>
+
+        <!-- 注册设置服务 -->
+        <applicationService serviceImplementation="com.vyibc.autocrplugin.settings.TranslationSettings"/>
+    </extensions>
+
+    <!-- Actions -->
+    <actions>
+        <!-- 翻译Action -->
+        <action id="com.vyibc.autocrplugin.action.TranslateAction"
+                class="com.vyibc.autocrplugin.action.TranslateAction"
+                text="Translate"
+                description="Translate selected text">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt T"/>
+        </action>
+    </actions>
+</idea-plugin>
