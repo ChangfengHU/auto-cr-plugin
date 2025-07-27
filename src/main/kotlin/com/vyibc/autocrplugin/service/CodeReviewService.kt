@@ -31,7 +31,8 @@ data class CodeReviewResult(
     val issues: List<CodeIssue>,
     val suggestions: List<String>,
     val riskLevel: RiskLevel,
-    val summary: String
+    val summary: String,
+    val commitMessage: String? = null // AI建议的提交信息
 )
 
 /**

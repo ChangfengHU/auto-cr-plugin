@@ -107,7 +107,8 @@ class AICodeReviewService : CodeReviewService {
     "改进建议1",
     "改进建议2"
   ],
-  "summary": "总结"
+  "summary": "总结",
+  "commitMessage": "建议的Git提交信息"
 }
 ```
 
@@ -115,6 +116,7 @@ class AICodeReviewService : CodeReviewService {
 - overallScore: 必须是0-100的整数
 - riskLevel: 必须是 LOW|MEDIUM|HIGH|CRITICAL 之一
 - severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一
+- commitMessage: 根据代码变更内容生成简洁明了的提交信息
 - 请确保返回的是有效的JSON格式，不要包含markdown代码块标记
         """.trimIndent())
         
@@ -236,6 +238,9 @@ class AICodeReviewService : CodeReviewService {
 
             val summary = jsonObject.get("summary")?.asString ?: "代码评估完成"
             println("解析总结: $summary")
+
+            val commitMessage = jsonObject.get("commitMessage")?.asString
+            println("解析提交信息: $commitMessage")
             
             val issues = mutableListOf<CodeIssue>()
             val issuesArray = jsonObject.getAsJsonArray("issues")
@@ -295,7 +300,8 @@ class AICodeReviewService : CodeReviewService {
                 issues = issues,
                 suggestions = suggestions,
                 riskLevel = riskLevel,
-                summary = summary
+                summary = summary,
+                commitMessage = commitMessage
             )
 
             println("=== ✅ AI响应解析完成 ===")
@@ -318,7 +324,8 @@ class AICodeReviewService : CodeReviewService {
                     "请检查AI服务配置和网络连接"
                 ),
                 riskLevel = RiskLevel.MEDIUM,
-                summary = "AI响应解析失败，无法获取详细的代码评估结果"
+                summary = "AI响应解析失败，无法获取详细的代码评估结果",
+                commitMessage = null
             )
         }
     }

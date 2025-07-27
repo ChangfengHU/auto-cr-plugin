@@ -28,6 +28,7 @@ class CodeReviewProcessDialog(
     private lateinit var startAnalysisButton: JButton
     private lateinit var commitButton: JButton
     private lateinit var cancelButton: JButton
+    private lateinit var tabbedPane: JTabbedPane
 
     private var reviewResult: CodeReviewResult? = null
     private var canCommit = false
@@ -98,7 +99,7 @@ class CodeReviewProcessDialog(
         val mainPanel = JPanel(BorderLayout())
         
         // 创建选项卡面板
-        val tabbedPane = JTabbedPane()
+        tabbedPane = JTabbedPane()
         
         // 代码变更选项卡
         tabbedPane.addTab("代码变更", createChangesPanel())
@@ -444,6 +445,9 @@ class CodeReviewProcessDialog(
         val startAnalysisAction = object : AbstractAction("🚀 开始AI分析") {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
                 if (codeReviewService != null) {
+                    // 自动切换到"分析过程"选项卡
+                    tabbedPane.selectedIndex = 1 // 分析过程是第二个tab (索引1)
+
                     // 清空之前的分析过程
                     clearAnalysisProcess()
 
@@ -465,7 +469,8 @@ class CodeReviewProcessDialog(
         val commitAction = object : AbstractAction("提交代码") {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
                 if (canCommit && reviewResult != null) {
-                    performGitCommit()
+                    // 直接执行Git提交，不需要确认对话框
+                    performGitCommitDirect()
                 }
             }
         }
@@ -588,6 +593,13 @@ class CodeReviewProcessDialog(
 
                     if (canCommit) {
                         appendProcess("✅ 代码质量达标，可以提交\n")
+
+                        // 显示AI建议的提交信息
+                        if (result.commitMessage?.isNotBlank() == true) {
+                            appendProcess("\n💡 AI建议的提交信息:\n")
+                            appendProcess("${result.commitMessage}\n\n")
+                        }
+
                         commitButton.isEnabled = true
                         commitButton.text = "提交代码 (git commit)"
                     } else {
@@ -666,10 +678,29 @@ class CodeReviewProcessDialog(
                     appendProcess("添加已修改的文件到Git暂存区...\n")
                 }
 
-                // 只添加已修改的文件，避免.gitignore问题
-                val filesToAdd = changes.map { it.filePath }
+                // 获取Git仓库根目录
+                val gitRoot = getGitRepositoryRoot()
+                if (gitRoot == null) {
+                    SwingUtilities.invokeLater {
+                        appendProcess("❌ 无法找到Git仓库根目录\n")
+                        commitButton.isEnabled = true
+                        commitButton.text = "Git仓库错误，重试"
+                    }
+                    return@Thread
+                }
+
                 SwingUtilities.invokeLater {
-                    appendProcess("要添加的文件:\n")
+                    appendProcess("Git仓库根目录: ${gitRoot.absolutePath}\n")
+                }
+
+                // 将绝对路径转换为相对路径
+                val filesToAdd = changes.map { change ->
+                    val relativePath = getRelativePath(change.filePath, gitRoot)
+                    relativePath
+                }
+
+                SwingUtilities.invokeLater {
+                    appendProcess("要添加的文件 (相对路径):\n")
                     filesToAdd.forEach { file ->
                         appendProcess("  • $file\n")
                     }
@@ -685,6 +716,10 @@ class CodeReviewProcessDialog(
                         }
                         addSuccess = false
                         break
+                    } else {
+                        SwingUtilities.invokeLater {
+                            appendProcess("✅ 成功添加: $filePath\n")
+                        }
                     }
                 }
 
@@ -715,6 +750,137 @@ class CodeReviewProcessDialog(
                             "代码已成功提交到Git仓库！\n\n" +
                                     "评分: ${result.overallScore}/100\n" +
                                     "风险等级: ${getRiskLevelText(result.riskLevel)}\n" +
+                                    "提交信息: ${commitMessage.split('\n').first()}",
+                            "Git提交成功"
+                        )
+
+                        // 关闭对话框
+                        close(OK_EXIT_CODE)
+                    } else {
+                        appendProcess("❌ Git提交失败: ${commitResult.error}\n")
+                        commitButton.isEnabled = true
+                        commitButton.text = "提交失败，重试"
+                    }
+                }
+
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater {
+                    appendProcess("❌ 提交过程出错: ${e.message}\n")
+                    commitButton.isEnabled = true
+                    commitButton.text = "提交出错，重试"
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * 直接执行Git提交（简化版）
+     */
+    private fun performGitCommitDirect() {
+        if (reviewResult == null) {
+            appendProcess("❌ 错误: 没有评估结果，无法提交\n")
+            return
+        }
+
+        // 切换到分析过程tab显示提交过程
+        tabbedPane.selectedIndex = 1
+
+        // 在后台线程执行Git提交
+        Thread {
+            try {
+                SwingUtilities.invokeLater {
+                    appendProcess("\n=== 🚀 执行Git提交 ===\n")
+                    appendProcess("准备提交代码到Git仓库...\n")
+                    commitButton.isEnabled = false
+                    commitButton.text = "正在提交..."
+                }
+
+                // 使用AI建议的提交信息，如果没有则使用默认的
+                val commitMessage = reviewResult!!.commitMessage?.takeIf { it.isNotBlank() }
+                    ?: buildCommitMessage(reviewResult!!)
+
+                SwingUtilities.invokeLater {
+                    if (reviewResult!!.commitMessage?.isNotBlank() == true) {
+                        appendProcess("📝 使用AI建议的提交信息:\n")
+                    } else {
+                        appendProcess("📝 使用默认提交信息:\n")
+                    }
+                    appendProcess("$commitMessage\n\n")
+                    appendProcess("添加已修改的文件到Git暂存区...\n")
+                }
+
+                // 获取Git仓库根目录
+                val gitRoot = getGitRepositoryRoot()
+                if (gitRoot == null) {
+                    SwingUtilities.invokeLater {
+                        appendProcess("❌ 无法找到Git仓库根目录\n")
+                        commitButton.isEnabled = true
+                        commitButton.text = "Git仓库错误，重试"
+                    }
+                    return@Thread
+                }
+
+                SwingUtilities.invokeLater {
+                    appendProcess("Git仓库根目录: ${gitRoot.absolutePath}\n")
+                }
+
+                // 将绝对路径转换为相对路径
+                val filesToAdd = changes.map { change ->
+                    val relativePath = getRelativePath(change.filePath, gitRoot)
+                    relativePath
+                }
+
+                SwingUtilities.invokeLater {
+                    appendProcess("要添加的文件 (相对路径):\n")
+                    filesToAdd.forEach { file ->
+                        appendProcess("  • $file\n")
+                    }
+                }
+
+                // 执行git add 对每个文件
+                var addSuccess = true
+                for (filePath in filesToAdd) {
+                    val addResult = executeGitCommand(listOf("git", "add", filePath))
+                    if (!addResult.success) {
+                        SwingUtilities.invokeLater {
+                            appendProcess("❌ 添加文件失败 $filePath: ${addResult.error}\n")
+                        }
+                        addSuccess = false
+                        break
+                    } else {
+                        SwingUtilities.invokeLater {
+                            appendProcess("✅ 成功添加: $filePath\n")
+                        }
+                    }
+                }
+
+                if (!addSuccess) {
+                    SwingUtilities.invokeLater {
+                        commitButton.isEnabled = true
+                        commitButton.text = "添加文件失败，重试"
+                    }
+                    return@Thread
+                }
+
+                SwingUtilities.invokeLater {
+                    appendProcess("✅ 文件添加成功\n")
+                    appendProcess("执行 git commit\n")
+                }
+
+                // 执行git commit
+                val commitResult = executeGitCommand(listOf("git", "commit", "-m", commitMessage))
+
+                SwingUtilities.invokeLater {
+                    if (commitResult.success) {
+                        appendProcess("✅ Git提交成功!\n")
+                        appendProcess("提交哈希: ${commitResult.output.take(50)}...\n")
+                        appendProcess("\n=== 🎉 代码提交完成 ===\n")
+
+                        // 显示成功消息
+                        com.intellij.openapi.ui.Messages.showInfoMessage(
+                            "代码已成功提交到Git仓库！\n\n" +
+                                    "评分: ${reviewResult!!.overallScore}/100\n" +
+                                    "风险等级: ${getRiskLevelText(reviewResult!!.riskLevel)}\n" +
                                     "提交信息: ${commitMessage.split('\n').first()}",
                             "Git提交成功"
                         )
@@ -772,12 +938,77 @@ class CodeReviewProcessDialog(
     }
 
     /**
+     * 获取Git仓库根目录
+     */
+    private fun getGitRepositoryRoot(): java.io.File? {
+        return try {
+            // 从当前工作目录开始向上查找.git目录
+            var currentDir = java.io.File(System.getProperty("user.dir"))
+
+            while (currentDir != null && currentDir.exists()) {
+                val gitDir = java.io.File(currentDir, ".git")
+                if (gitDir.exists()) {
+                    return currentDir
+                }
+                currentDir = currentDir.parentFile
+            }
+
+            // 如果没找到，尝试使用git命令获取
+            val processBuilder = ProcessBuilder("git", "rev-parse", "--show-toplevel")
+            processBuilder.directory(java.io.File(System.getProperty("user.dir")))
+
+            val process = processBuilder.start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            val exitCode = process.waitFor()
+
+            if (exitCode == 0 && output.isNotEmpty()) {
+                java.io.File(output)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 将绝对路径转换为相对于Git仓库根目录的相对路径
+     */
+    private fun getRelativePath(absolutePath: String, gitRoot: java.io.File): String {
+        return try {
+            val absoluteFile = java.io.File(absolutePath)
+            val gitRootPath = gitRoot.canonicalPath
+            val absoluteCanonicalPath = absoluteFile.canonicalPath
+
+            if (absoluteCanonicalPath.startsWith(gitRootPath)) {
+                absoluteCanonicalPath.substring(gitRootPath.length + 1)
+            } else {
+                // 如果不在Git仓库内，返回原路径
+                absolutePath
+            }
+        } catch (e: Exception) {
+            // 出错时返回原路径
+            absolutePath
+        }
+    }
+
+    /**
      * 执行Git命令
      */
     private fun executeGitCommand(command: List<String>): GitCommandResult {
         return try {
+            val gitRoot = getGitRepositoryRoot()
+            if (gitRoot == null) {
+                return GitCommandResult(
+                    success = false,
+                    output = "",
+                    error = "无法找到Git仓库根目录",
+                    exitCode = -1
+                )
+            }
+
             val processBuilder = ProcessBuilder(command)
-            processBuilder.directory(java.io.File(System.getProperty("user.dir")))
+            processBuilder.directory(gitRoot) // 使用Git仓库根目录作为工作目录
 
             val process = processBuilder.start()
             val output = process.inputStream.bufferedReader().readText()
@@ -881,7 +1112,8 @@ class CodeReviewProcessDialog(
     "改进建议1",
     "改进建议2"
   ],
-  "summary": "总结"
+  "summary": "总结",
+  "commitMessage": "建议的Git提交信息"
 }
 ```
 
@@ -889,6 +1121,7 @@ class CodeReviewProcessDialog(
 - overallScore: 必须是0-100的整数
 - riskLevel: 必须是 LOW|MEDIUM|HIGH|CRITICAL 之一
 - severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一
+- commitMessage: 根据代码变更内容生成简洁明了的提交信息
 - 请确保返回的是有效的JSON格式
         """.trimIndent())
 
