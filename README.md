@@ -33,6 +33,7 @@ cd auto-cr-plugin
 2. 构建插件:
 ```bash
 ./gradlew buildPlugin
+ ./gradlew buildPlugin -x buildSearchableOptions
 ```
 
 3. 在IntelliJ IDEA中安装:

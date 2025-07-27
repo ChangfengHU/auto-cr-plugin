@@ -72,16 +72,25 @@ class QuickCodeReviewMenuAction : AnAction("Code Review") {
         if (choice == Messages.YES) {
             // 调用测试功能
             val testAction = com.vyibc.autocrplugin.action.TestCodeReviewAction()
-            val mockEvent = object : AnActionEvent(
+
+            // 创建一个包含project的DataContext
+            val dataContext = object : com.intellij.openapi.actionSystem.DataContext {
+                override fun getData(dataId: String): Any? {
+                    return when (dataId) {
+                        com.intellij.openapi.actionSystem.CommonDataKeys.PROJECT.name -> project
+                        else -> null
+                    }
+                }
+            }
+
+            val mockEvent = AnActionEvent(
                 null,
-                com.intellij.openapi.actionSystem.DataContext.EMPTY_CONTEXT,
+                dataContext,
                 "",
                 com.intellij.openapi.actionSystem.Presentation(),
                 com.intellij.openapi.actionSystem.ActionManager.getInstance(),
                 0
-            ) {
-                override fun getProject(): Project? = project
-            }
+            )
             testAction.actionPerformed(mockEvent)
         }
     }
