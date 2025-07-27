@@ -1,6 +1,7 @@
 package com.vyibc.autocrplugin.service.impl
 
 import com.vyibc.autocrplugin.service.*
+import com.vyibc.autocrplugin.settings.CodeReviewSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.google.gson.Gson
@@ -34,9 +35,18 @@ class AICodeReviewService : CodeReviewService {
      * 构建AI评估提示词
      */
     private fun buildReviewPrompt(changes: List<CodeChange>, commitMessage: String): String {
+        val settings = CodeReviewSettings.getInstance()
         val prompt = StringBuilder()
-        
-        prompt.append("请对以下代码变更进行详细的代码评估(Code Review):\n\n")
+
+        // 使用自定义提示词或默认提示词
+        val basePrompt = if (settings.customPrompt.isNotEmpty()) {
+            settings.customPrompt
+        } else {
+            getDefaultPrompt()
+        }
+
+        prompt.append(basePrompt)
+        prompt.append("\n\n## 📋 代码变更详情：\n\n")
         prompt.append("提交信息: $commitMessage\n\n")
         
         changes.forEach { change ->
@@ -75,26 +85,90 @@ class AICodeReviewService : CodeReviewService {
         }
         
         prompt.append("""
-            请从以下维度进行评估:
-            1. 代码风格和规范
-            2. 性能问题
-            3. 安全风险
-            4. 潜在Bug
-            5. 可维护性
-            6. 最佳实践
-            
-            请以JSON格式返回评估结果，包含:
-            - overallScore: 总体评分(0-100)
-            - riskLevel: 风险等级(LOW/MEDIUM/HIGH/CRITICAL)
-            - issues: 问题列表，每个问题包含filePath, lineNumber, severity, category, message, suggestion
-            - suggestions: 改进建议列表
-            - summary: 总结
+
+## 📤 严格返回格式要求：
+请严格按照以下JSON格式返回，不要添加任何其他文字：
+
+```json
+{
+  "overallScore": 85,
+  "riskLevel": "MEDIUM",
+  "issues": [
+    {
+      "filePath": "文件路径",
+      "lineNumber": 行号,
+      "severity": "CRITICAL|MAJOR|MINOR|INFO",
+      "category": "问题分类",
+      "message": "问题描述",
+      "suggestion": "修复建议"
+    }
+  ],
+  "suggestions": [
+    "改进建议1",
+    "改进建议2"
+  ],
+  "summary": "总结"
+}
+```
+
+注意：
+- overallScore: 必须是0-100的整数
+- riskLevel: 必须是 LOW|MEDIUM|HIGH|CRITICAL 之一
+- severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一
+- 请确保返回的是有效的JSON格式，不要包含markdown代码块标记
         """.trimIndent())
         
         return prompt.toString()
     }
 
+    /**
+     * 获取默认的AI分析提示词
+     */
+    private fun getDefaultPrompt(): String {
+        return """
+请对以下代码变更进行专业的代码评估(Code Review)，重点关注生产环境安全性和最佳实践：
 
+## 🔍 重点检查项目：
+
+### 🚨 生产环境危险操作
+- Redis危险命令：keys、flushdb、flushall、config等
+- 数据库全表扫描：select * without where、count(*)等
+- 阻塞操作：同步IO、长时间循环等
+- 资源泄漏：未关闭连接、内存泄漏等
+
+### 🔒 安全问题
+- SQL注入风险
+- XSS攻击风险
+- 敏感信息泄露（密码、token等）
+- 权限控制缺失
+- 输入验证不足
+
+### 📊 性能问题
+- N+1查询问题
+- 不必要的数据库查询
+- 低效的算法实现
+- 内存使用不当
+- 缓存使用不当
+
+### 🏗️ 代码质量
+- 代码重复
+- 方法过长或过于复杂
+- 命名不规范
+- 异常处理不当
+- 日志记录不足
+
+### 🧪 测试覆盖
+- 缺少单元测试
+- 边界条件未测试
+- 异常情况未覆盖
+
+## 📋 评估要求：
+1. 给出0-100的综合评分
+2. 标注风险等级：LOW/MEDIUM/HIGH/CRITICAL
+3. 列出具体问题和改进建议
+4. 特别标注生产环境风险项
+        """.trimIndent()
+    }
 
     /**
      * 生成模拟AI响应（用于演示）
@@ -128,51 +202,123 @@ class AICodeReviewService : CodeReviewService {
      * 解析AI响应
      */
     private fun parseAIResponse(response: String): CodeReviewResult {
+        println("=== 🔍 AI响应解析过程 ===")
+        println("原始响应长度: ${response.length} 字符")
+        println("原始响应内容:")
+        println(response)
+        println("========================")
+
         try {
-            val jsonObject = gson.fromJson(response, JsonObject::class.java)
-            
+            // 清理响应内容，移除可能的markdown代码块标记
+            val cleanedResponse = response
+                .replace("```json", "")
+                .replace("```", "")
+                .trim()
+
+            println("清理后的响应:")
+            println(cleanedResponse)
+            println("========================")
+
+            val jsonObject = gson.fromJson(cleanedResponse, JsonObject::class.java)
+            println("JSON解析成功")
+
             val overallScore = jsonObject.get("overallScore")?.asInt ?: 70
-            val riskLevel = RiskLevel.valueOf(jsonObject.get("riskLevel")?.asString ?: "MEDIUM")
+            println("解析评分: $overallScore")
+
+            val riskLevelStr = jsonObject.get("riskLevel")?.asString ?: "MEDIUM"
+            val riskLevel = try {
+                RiskLevel.valueOf(riskLevelStr)
+            } catch (e: Exception) {
+                println("风险等级解析失败: $riskLevelStr，使用默认值 MEDIUM")
+                RiskLevel.MEDIUM
+            }
+            println("解析风险等级: $riskLevel")
+
             val summary = jsonObject.get("summary")?.asString ?: "代码评估完成"
+            println("解析总结: $summary")
             
             val issues = mutableListOf<CodeIssue>()
             val issuesArray = jsonObject.getAsJsonArray("issues")
+            println("解析问题列表，数量: ${issuesArray?.size() ?: 0}")
+
             issuesArray?.forEach { issueElement ->
-                val issueObj = issueElement.asJsonObject
-                issues.add(
-                    CodeIssue(
+                try {
+                    val issueObj = issueElement.asJsonObject
+                    val severityStr = issueObj.get("severity")?.asString ?: "INFO"
+                    val categoryStr = issueObj.get("category")?.asString ?: "CODE_STYLE"
+
+                    val severity = try {
+                        IssueSeverity.valueOf(severityStr)
+                    } catch (e: Exception) {
+                        println("严重程度解析失败: $severityStr，使用默认值 INFO")
+                        IssueSeverity.INFO
+                    }
+
+                    val category = try {
+                        IssueCategory.valueOf(categoryStr)
+                    } catch (e: Exception) {
+                        println("问题分类解析失败: $categoryStr，使用默认值 CODE_STYLE")
+                        IssueCategory.CODE_STYLE
+                    }
+
+                    val issue = CodeIssue(
                         filePath = issueObj.get("filePath")?.asString ?: "",
                         lineNumber = issueObj.get("lineNumber")?.asInt,
-                        severity = IssueSeverity.valueOf(issueObj.get("severity")?.asString ?: "INFO"),
-                        category = IssueCategory.valueOf(issueObj.get("category")?.asString ?: "CODE_STYLE"),
+                        severity = severity,
+                        category = category,
                         message = issueObj.get("message")?.asString ?: "",
                         suggestion = issueObj.get("suggestion")?.asString
                     )
-                )
+                    issues.add(issue)
+                    println("解析问题: ${issue.message}")
+                } catch (e: Exception) {
+                    println("解析单个问题失败: ${e.message}")
+                }
             }
             
             val suggestions = mutableListOf<String>()
             val suggestionsArray = jsonObject.getAsJsonArray("suggestions")
+            println("解析建议列表，数量: ${suggestionsArray?.size() ?: 0}")
+
             suggestionsArray?.forEach { suggestion ->
-                suggestions.add(suggestion.asString)
+                try {
+                    val suggestionText = suggestion.asString
+                    suggestions.add(suggestionText)
+                    println("解析建议: $suggestionText")
+                } catch (e: Exception) {
+                    println("解析单个建议失败: ${e.message}")
+                }
             }
-            
-            return CodeReviewResult(
+
+            val result = CodeReviewResult(
                 overallScore = overallScore,
                 issues = issues,
                 suggestions = suggestions,
                 riskLevel = riskLevel,
                 summary = summary
             )
-            
+
+            println("=== ✅ AI响应解析完成 ===")
+            println("最终结果: 评分=$overallScore, 风险=${riskLevel}, 问题=${issues.size}个, 建议=${suggestions.size}条")
+
+            return result
+
         } catch (e: Exception) {
+            println("=== ❌ AI响应解析失败 ===")
+            println("错误信息: ${e.message}")
+            println("错误堆栈: ${e.stackTraceToString()}")
+
             // 解析失败时返回默认结果
             return CodeReviewResult(
                 overallScore = 70,
                 issues = emptyList(),
-                suggestions = listOf("AI服务响应解析失败，请检查网络连接"),
+                suggestions = listOf(
+                    "AI服务响应解析失败: ${e.message}",
+                    "原始响应长度: ${response.length} 字符",
+                    "请检查AI服务配置和网络连接"
+                ),
                 riskLevel = RiskLevel.MEDIUM,
-                summary = "无法获取详细的代码评估结果"
+                summary = "AI响应解析失败，无法获取详细的代码评估结果"
             )
         }
     }

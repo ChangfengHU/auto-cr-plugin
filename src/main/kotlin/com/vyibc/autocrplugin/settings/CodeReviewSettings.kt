@@ -48,6 +48,9 @@ class CodeReviewSettings : PersistentStateComponent<CodeReviewSettings> {
     var maxTokens: Int = 2000
     var temperature: Double = 0.1
     var enableFallback: Boolean = true
+
+    // AI提示词配置
+    var customPrompt: String = ""
     var requestTimeout: Int = 30 // 秒
 
     companion object {
