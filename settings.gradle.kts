@@ -1,1 +1,1 @@
-rootProject.name = "auto-cr-plugin"
+rootProject.name = "auto-code-review"
