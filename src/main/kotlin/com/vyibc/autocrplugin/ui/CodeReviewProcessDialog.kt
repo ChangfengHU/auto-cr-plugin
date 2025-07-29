@@ -14,7 +14,7 @@ import javax.swing.table.DefaultTableModel
  * 代码评估过程展示对话框
  */
 class CodeReviewProcessDialog(
-    project: Project?,
+    private val project: Project?,
     private val changes: List<CodeChange>,
     private val commitMessage: String
 ) : DialogWrapper(project) {
@@ -513,11 +513,65 @@ class CodeReviewProcessDialog(
                 // 显示提示词构建过程
                 updateProgress(40, "构建AI提示词...")
                 val prompt = buildDetailedPrompt()
-                appendProcess("\n=== 📝 发送给AI的提示词 ===\n")
+                appendProcess("\n=== 📝 AI分析入参详情 ===\n")
                 appendProcess("提示词长度: ${prompt.length} 字符\n")
-                appendProcess("提示词内容:\n")
-                appendProcess("${prompt.take(500)}...\n") // 显示前500字符
-                appendProcess("(完整提示词已发送给AI服务)\n\n")
+                appendProcess("AI服务: ${codeReviewService!!.getServiceName()}\n")
+                appendProcess("请求时间: ${java.time.LocalDateTime.now()}\n\n")
+
+                appendProcess("=== 📋 完整提示词内容 ===\n")
+                appendProcess("```\n")
+                appendProcess(prompt)
+                appendProcess("\n```\n\n")
+
+                appendProcess("=== 📊 代码变更统计 ===\n")
+                appendProcess("变更文件数量: ${changes.size}\n")
+                changes.forEach { change ->
+                    appendProcess("• ${change.filePath} (${getChangeTypeText(change.changeType)})\n")
+                    appendProcess("  新增行: ${change.addedLines.size}, 删除行: ${change.removedLines.size}, 修改行: ${change.modifiedLines.size}\n")
+
+                    // 显示实际的变更内容
+                    if (change.addedLines.isNotEmpty()) {
+                        appendProcess("  新增内容:\n")
+                        change.addedLines.take(3).forEach { line ->
+                            appendProcess("    + ${line.trim()}\n")
+                        }
+                        if (change.addedLines.size > 3) {
+                            appendProcess("    + ... 还有 ${change.addedLines.size - 3} 行\n")
+                        }
+                    }
+
+                    if (change.removedLines.isNotEmpty()) {
+                        appendProcess("  删除内容:\n")
+                        change.removedLines.take(3).forEach { line ->
+                            appendProcess("    - ${line.trim()}\n")
+                        }
+                        if (change.removedLines.size > 3) {
+                            appendProcess("    - ... 还有 ${change.removedLines.size - 3} 行\n")
+                        }
+                    }
+                }
+
+                // 分析方法调用
+                appendProcess("\n=== 🔍 方法调用分析 ===\n")
+                val settings = com.vyibc.autocrplugin.settings.CodeReviewSettings.getInstance()
+                val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
+                methodAnalyzer.debugCallback = { message ->
+                    appendProcess("  $message\n")
+                }
+                val methodCalls = methodAnalyzer.analyzeMethodCalls(changes)
+
+                if (methodCalls.isNotEmpty()) {
+                    appendProcess("发现 ${methodCalls.size} 个方法调用需要深度分析:\n")
+                    appendProcess("⚠️ 以下方法实现将发送给AI进行安全评估：\n\n")
+                    methodCalls.forEach { call ->
+                        appendMethodCallToProcess(call, 1)
+                    }
+                    appendProcess("\n💡 提示：级联调用显示了方法内部调用的其他方法，帮助发现深层安全风险\n")
+                } else {
+                    appendProcess("未发现需要特别关注的方法调用\n")
+                    appendProcess("💡 这意味着代码变更主要是简单的逻辑修改，没有复杂的方法调用链\n")
+                }
+                appendProcess("\n")
 
                 updateProgress(50, "发送请求到AI服务...")
                 appendProcess("=== 🌐 API调用信息 ===\n")
@@ -534,18 +588,67 @@ class CodeReviewProcessDialog(
                 Thread.sleep(2000)
 
                 updateProgress(80, "处理AI响应...")
-                appendProcess("\n=== 📥 收到AI响应 ===\n")
-                appendProcess("响应状态: 200 OK\n")
-                appendProcess("开始解析AI响应...\n")
+                appendProcess("\n=== 🌐 发送AI请求 ===\n")
+                appendProcess("请求发送时间: ${java.time.LocalDateTime.now()}\n")
+                appendProcess("等待AI服务响应...\n")
 
-                // 执行实际的代码评估
-                appendProcess("调用AI服务进行分析...\n")
-                val result = kotlinx.coroutines.runBlocking {
-                    codeReviewService!!.reviewCode(changes, commitMessage)
+                // 创建调试回调
+                val debugCallback = object : com.vyibc.autocrplugin.service.AIDebugCallback {
+                    override fun onAIRequest(serviceName: String, prompt: String, requestTime: String) {
+                        SwingUtilities.invokeLater {
+                            appendProcess("=== 📤 AI请求详情 ===\n")
+                            appendProcess("服务名称: $serviceName\n")
+                            appendProcess("请求时间: $requestTime\n")
+                            appendProcess("提示词长度: ${prompt.length} 字符\n\n")
+                        }
+                    }
+
+                    override fun onAIResponse(response: String, responseTime: String) {
+                        SwingUtilities.invokeLater {
+                            appendProcess("=== 📥 AI原始响应 ===\n")
+                            appendProcess("响应时间: $responseTime\n")
+                            appendProcess("响应长度: ${response.length} 字符\n")
+                            appendProcess("原始响应内容:\n")
+                            appendProcess("```json\n")
+                            appendProcess(response)
+                            appendProcess("\n```\n\n")
+                        }
+                    }
+
+                    override fun onParsingStep(step: String, details: String) {
+                        SwingUtilities.invokeLater {
+                            appendProcess("🔍 解析步骤: $step\n")
+                            appendProcess("详情: $details\n")
+                        }
+                    }
+
+                    override fun onParsingResult(success: Boolean, result: com.vyibc.autocrplugin.service.CodeReviewResult?, error: String?) {
+                        SwingUtilities.invokeLater {
+                            if (success && result != null) {
+                                appendProcess("=== ✅ 解析成功 ===\n")
+                                appendProcess("评分: ${result.overallScore}/100\n")
+                                appendProcess("风险等级: ${result.riskLevel}\n")
+                                appendProcess("问题数量: ${result.issues.size}\n")
+                                appendProcess("建议数量: ${result.suggestions.size}\n")
+                                if (result.commitMessage != null) {
+                                    appendProcess("AI建议提交信息: ${result.commitMessage}\n")
+                                }
+                            } else {
+                                appendProcess("=== ❌ 解析失败 ===\n")
+                                appendProcess("错误信息: ${error ?: "未知错误"}\n")
+                            }
+                            appendProcess("\n")
+                        }
+                    }
                 }
 
-                appendProcess("\n=== 📊 AI分析结果 ===\n")
-                appendProcess("AI服务响应成功\n")
+                // 执行实际的代码评估
+                val result = kotlinx.coroutines.runBlocking {
+                    codeReviewService!!.reviewCode(changes, commitMessage, debugCallback)
+                }
+
+                appendProcess("\n=== 📥 AI响应详情 ===\n")
+                appendProcess("响应接收时间: ${java.time.LocalDateTime.now()}\n")
                 appendProcess("解析状态: 成功\n")
 
                 updateProgress(90, "生成评估报告...")
@@ -1090,39 +1193,81 @@ class CodeReviewProcessDialog(
             prompt.append("\n---\n\n")
         }
 
+        // 添加方法调用分析结果  
+        val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
+        val methodCalls = methodAnalyzer.analyzeMethodCalls(changes)
+
+        if (methodCalls.isNotEmpty()) {
+            prompt.append("## 🔍 **方法实现安全分析**\n\n")
+            prompt.append("""
+**📋 以下是代码变更中调用的方法的完整实现，请基于自动化工具的预检测结果进行深度分析：**
+
+**🎯 分析重点：**
+1. **预检测危险操作** - 重点关注标记为"已检测到潜在危险操作"的代码段
+2. **生产环境影响** - 评估每种危险操作在高并发环境下的具体影响
+3. **风险等级判定** - 根据影响程度确定CRITICAL/HIGH/MEDIUM/LOW等级
+4. **解决方案制定** - 针对发现的问题提供具体的技术改进方案
+
+**⚠️ 评估依据：**
+- 系统预检测到的危险操作类型和描述
+- 方法实现的完整源代码
+- 生产环境下的潜在影响分析
+
+            """.trimIndent())
+
+            methodCalls.forEach { call ->
+                appendMethodImplementation(prompt, call.implementation, 1)
+            }
+        }
+
         prompt.append("""
 ## 📤 严格返回格式要求：
+
+**评分标准：**
+- **0-30分**：包含CRITICAL风险，立即阻止部署
+- **31-60分**：包含HIGH风险，需要修复后部署  
+- **61-80分**：包含MEDIUM风险，建议优化
+- **81-100分**：低风险或无风险
+
+**风险等级判定：**
+- **CRITICAL**：Redis keys()、数据库全表扫描、敏感信息泄露等生产致命问题
+- **HIGH**：SQL注入、权限绕过、严重性能问题
+- **MEDIUM**：一般性能问题、代码质量问题
+- **LOW**：轻微改进建议
+
 请严格按照以下JSON格式返回，不要添加任何其他文字：
 
 ```json
 {
-  "overallScore": 85,
-  "riskLevel": "MEDIUM",
+  "overallScore": 25,
+  "riskLevel": "CRITICAL",
   "issues": [
     {
-      "filePath": "文件路径",
-      "lineNumber": 行号,
-      "severity": "CRITICAL|MAJOR|MINOR|INFO",
-      "category": "问题分类",
-      "message": "问题描述",
-      "suggestion": "修复建议"
+      "filePath": "具体文件路径",
+      "lineNumber": "具体行号或代码段",
+      "severity": "CRITICAL",
+      "category": "生产环境危险操作",
+      "message": "根据系统预检测结果，发现[具体危险操作类型]，在生产环境中会导致[具体影响描述]",
+      "suggestion": "基于危险操作类型提供针对性的技术解决方案"
     }
   ],
   "suggestions": [
-    "改进建议1",
-    "改进建议2"
+    "基于预检测结果提供的具体技术改进建议",
+    "针对发现的危险操作类型的最佳实践建议",
+    "生产环境优化和监控建议"
   ],
-  "summary": "总结",
-  "commitMessage": "建议的Git提交信息"
+  "summary": "基于系统预检测的危险操作进行风险评估，详细说明对生产环境的影响和修复紧急程度",
+  "commitMessage": "根据实际检测到的问题生成相应的提交信息"
 }
 ```
 
-注意：
-- overallScore: 必须是0-100的整数
+**重要要求：**
+- overallScore: 0-100整数，根据最高风险等级确定分数范围
 - riskLevel: 必须是 LOW|MEDIUM|HIGH|CRITICAL 之一
-- severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一
-- commitMessage: 根据代码变更内容生成简洁明了的提交信息
-- 请确保返回的是有效的JSON格式
+- severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一  
+- 如果发现任何Redis keys()、数据库全表扫描等问题，riskLevel必须是CRITICAL
+- issues数组必须包含发现的所有问题，包括方法实现中的问题
+- 请确保返回有效的JSON格式
         """.trimIndent())
 
         return prompt.toString()
@@ -1133,36 +1278,56 @@ class CodeReviewProcessDialog(
      */
     private fun getDefaultPrompt(): String {
         return """
-请对以下代码变更进行专业的代码评估(Code Review)，重点关注生产环境安全性和最佳实践：
+🚨 **生产环境安全代码审查专家 - 严格风险评估标准**
 
-## 🔍 重点检查项目：
+**核心任务：基于方法实现中检测到的危险操作进行精确风险评估**
 
-### 🚨 生产环境危险操作
-- Redis危险命令：keys、flushdb、flushall、config等
-- 数据库全表扫描：select * without where、count(*)等
-- 阻塞操作：同步IO、长时间循环等
-- 资源泄漏：未关闭连接、内存泄漏等
+## 🔍 **风险评估方法论：**
 
-### 🔒 安全问题
-- SQL注入风险
-- XSS攻击风险
-- 敏感信息泄露（密码、token等）
-- 权限控制缺失
-- 输入验证不足
+### 第一步：危险操作检测分析
+**重点关注系统预检测标记的"已检测到潜在危险操作"，这些是自动化工具识别的高风险模式：**
+- 🚨 如标记为"Redis危险操作" → 分析具体影响和阻塞风险
+- 🚨 如标记为"SQL危险操作" → 分析查询性能和注入风险  
+- 🚨 如标记为"资源泄漏风险" → 分析内存和连接泄漏影响
+- 🚨 如标记为"阻塞操作" → 分析并发性能和响应时间影响
 
-### 📊 性能问题
-- N+1查询问题
-- 不必要的数据库查询
-- 低效的算法实现
-- 内存使用不当
-- 缓存使用不当
+### 第二步：生产环境影响评估
+**针对检测到的每种危险操作，评估其在高并发生产环境下的影响：**
+- **服务可用性影响** - 是否会导致服务不可用？
+- **性能影响程度** - 对系统整体性能的影响范围？
+- **故障传播风险** - 是否会引发连锁故障？
+- **恢复难度评估** - 故障后恢复的复杂度？
 
-### 🏗️ 代码质量
-- 代码重复
-- 方法过长或过于复杂
-- 命名不规范
-- 异常处理不当
-- 日志记录不足
+### 第三步：风险等级判定标准
+**基于影响程度确定风险等级：**
+
+#### 🚨 CRITICAL (0-30分)：
+- 会导致服务完全不可用的操作
+- 可能引发系统宕机的风险
+- 影响所有用户的致命问题
+- 数据安全威胁
+
+#### ⚠️ HIGH (31-60分)：
+- 严重影响性能但不至于宕机
+- 安全漏洞但影响范围有限
+- 需要紧急修复的问题
+
+#### 📊 MEDIUM (61-80分)：
+- 一般性能问题
+- 代码质量问题
+- 建议优化的改进点
+
+#### 💡 LOW (81-100分)：
+- 轻微改进建议
+- 最佳实践推荐
+- 代码规范问题
+
+## 🎯 **分析执行原则：**
+
+1. **基于事实评估** - 严格基于方法实现代码和检测到的危险操作进行评估
+2. **影响导向评估** - 重点关注对生产环境的实际影响程度
+3. **具体化建议** - 提供针对性的技术解决方案
+4. **严格等级标准** - 严格按照风险等级对应的评分范围给分
         """.trimIndent()
     }
 
@@ -1209,6 +1374,82 @@ class CodeReviewProcessDialog(
             RiskLevel.MEDIUM -> Color(255, 165, 0) // 橙色
             RiskLevel.HIGH -> Color(255, 69, 0)    // 红橙色
             RiskLevel.CRITICAL -> Color(220, 20, 60) // 红色
+        }
+    }
+    
+    /**
+     * 递归地添加方法实现到提示中（包含级联方法）
+     */
+    private fun appendMethodImplementation(prompt: StringBuilder, impl: MethodImplementation, level: Int) {
+        val indent = "  ".repeat(level - 1)
+        val levelPrefix = if (level == 1) "###" else "#".repeat(3 + level)
+        
+        prompt.append("$levelPrefix ${indent}方法: ${impl.className}.${impl.methodName}()\n")
+        prompt.append("${indent}实现文件: ${impl.filePath}\n\n")
+        prompt.append("${indent}方法实现代码:\n")
+        prompt.append("```java\n")
+        prompt.append(impl.sourceCode)
+        prompt.append("\n```\n\n")
+
+        if (impl.containsDangerousOperations.isNotEmpty()) {
+            prompt.append("${indent}🚨 **系统预检测到的危险操作**:\n")
+            impl.containsDangerousOperations.forEach { danger ->
+                // 根据危险操作类型确定严重程度标识
+                val severity = when {
+                    danger.contains("Redis") && (danger.contains("keys()") || danger.contains("模式匹配")) -> "🚨 CRITICAL"
+                    danger.contains("SQL") && danger.contains("全表") -> "🚨 CRITICAL" 
+                    danger.contains("Redis") -> "⚠️ HIGH"
+                    danger.contains("SQL") -> "⚠️ HIGH"
+                    danger.contains("资源") || danger.contains("泄漏") -> "⚠️ HIGH"
+                    danger.contains("阻塞") || danger.contains("循环") -> "⚠️ HIGH"
+                    else -> "📊 MEDIUM"
+                }
+                prompt.append("${indent}- $severity **$danger**\n")
+            }
+            prompt.append("${indent}**⚠️ 请基于上述预检测结果进行详细的风险等级评估和解决方案制定**\n\n")
+        }
+        
+        // 递归添加级联方法
+        if (impl.cascadedMethods.isNotEmpty()) {
+            prompt.append("${indent}**级联调用的方法:**\n\n")
+            impl.cascadedMethods.forEach { cascaded ->
+                appendMethodImplementation(prompt, cascaded, level + 1)
+            }
+        }
+
+        prompt.append("${indent}---\n\n")
+    }
+    
+    /**
+     * 递归地添加方法调用信息到处理过程显示（包含级联方法）
+     */
+    private fun appendMethodCallToProcess(call: MethodCallInfo, level: Int) {
+        appendImplementationToProcess(call.implementation, level, call.callerLine)
+    }
+    
+    /**
+     * 递归地添加方法实现信息到处理过程显示
+     */
+    private fun appendImplementationToProcess(impl: MethodImplementation, level: Int, callerLine: String? = null) {
+        val indent = "  ".repeat(level - 1)
+        val bullet = if (level == 1) "•" else "→"
+        
+        appendProcess("${indent}${bullet} ${impl.className}.${impl.methodName}()\n")
+        if (callerLine != null && level == 1) {
+            appendProcess("${indent}  调用位置: $callerLine\n")
+        }
+        appendProcess("${indent}  实现文件: ${impl.filePath}\n")
+
+        if (impl.containsDangerousOperations.isNotEmpty()) {
+            appendProcess("${indent}  ⚠️ 危险操作: ${impl.containsDangerousOperations.joinToString(", ")}\n")
+        }
+        
+        // 递归显示级联方法
+        if (impl.cascadedMethods.isNotEmpty()) {
+            appendProcess("${indent}  级联调用:\n")
+            impl.cascadedMethods.forEach { cascaded ->
+                appendImplementationToProcess(cascaded, level + 1)
+            }
         }
     }
 }

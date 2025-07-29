@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(find:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

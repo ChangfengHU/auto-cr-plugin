@@ -106,30 +106,68 @@ class GitChangeAnalyzer(private val project: Project) {
             return Triple(emptyList(), lines, emptyList())
         }
         
-        // 简单的行级别差异分析
+        // 改进的差异分析算法
         val oldLines = oldContent.lines()
         val newLines = newContent.lines()
-        
+
         val addedLines = mutableListOf<String>()
         val removedLines = mutableListOf<String>()
         val modifiedLines = mutableListOf<Pair<String, String>>()
-        
-        val maxLines = maxOf(oldLines.size, newLines.size)
-        
-        for (i in 0 until maxLines) {
-            val oldLine = oldLines.getOrNull(i)
-            val newLine = newLines.getOrNull(i)
-            
-            when {
-                oldLine == null && newLine != null -> addedLines.add(newLine)
-                oldLine != null && newLine == null -> removedLines.add(oldLine)
-                oldLine != null && newLine != null && oldLine != newLine -> {
-                    modifiedLines.add(oldLine to newLine)
+
+        // 使用更智能的diff算法
+        val diff = computeDiff(oldLines, newLines)
+
+        for (change in diff) {
+            when (change.type) {
+                DiffType.ADDED -> {
+                    // 过滤掉空行和只有空格的行
+                    val line = change.line.trim()
+                    if (line.isNotEmpty()) {
+                        addedLines.add(change.line)
+                    }
+                }
+                DiffType.REMOVED -> {
+                    val line = change.line.trim()
+                    if (line.isNotEmpty()) {
+                        removedLines.add(change.line)
+                    }
+                }
+                DiffType.MODIFIED -> {
+                    if (change.oldLine != null) {
+                        modifiedLines.add(change.oldLine to change.line)
+                    }
                 }
             }
         }
-        
+
         return Triple(addedLines, removedLines, modifiedLines)
+    }
+
+    /**
+     * 计算两个文件的差异
+     */
+    private fun computeDiff(oldLines: List<String>, newLines: List<String>): List<DiffChange> {
+        val changes = mutableListOf<DiffChange>()
+
+        // 使用简化的LCS算法来找出真正的变更
+        val oldSet = oldLines.toSet()
+        val newSet = newLines.toSet()
+
+        // 找出新增的行
+        newLines.forEachIndexed { index, line ->
+            if (!oldSet.contains(line)) {
+                changes.add(DiffChange(DiffType.ADDED, line, null, index))
+            }
+        }
+
+        // 找出删除的行
+        oldLines.forEachIndexed { index, line ->
+            if (!newSet.contains(line)) {
+                changes.add(DiffChange(DiffType.REMOVED, line, null, index))
+            }
+        }
+
+        return changes
     }
 
     /**
@@ -148,3 +186,22 @@ class GitChangeAnalyzer(private val project: Project) {
         return "Latest commit info"
     }
 }
+
+/**
+ * 差异类型
+ */
+enum class DiffType {
+    ADDED,      // 新增行
+    REMOVED,    // 删除行
+    MODIFIED    // 修改行
+}
+
+/**
+ * 差异变更
+ */
+data class DiffChange(
+    val type: DiffType,
+    val line: String,
+    val oldLine: String?,
+    val lineNumber: Int
+)

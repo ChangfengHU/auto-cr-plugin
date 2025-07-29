@@ -52,6 +52,9 @@ class CodeReviewSettings : PersistentStateComponent<CodeReviewSettings> {
     // AI提示词配置
     var customPrompt: String = ""
     var requestTimeout: Int = 30 // 秒
+    
+    // 方法调用分析配置
+    var maxCascadeDepth: Int = 2 // 级联分析深度，默认2层
 
     companion object {
         fun getInstance(): CodeReviewSettings {

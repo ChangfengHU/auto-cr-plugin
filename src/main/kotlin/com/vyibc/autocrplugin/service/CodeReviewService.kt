@@ -84,7 +84,7 @@ enum class RiskLevel {
  * 代码评估服务接口
  */
 interface CodeReviewService {
-    
+
     /**
      * 评估代码变更
      * @param changes 代码变更列表
@@ -95,7 +95,20 @@ interface CodeReviewService {
         changes: List<CodeChange>,
         commitMessage: String
     ): CodeReviewResult
-    
+
+    /**
+     * 评估代码变更（带调试回调）
+     * @param changes 代码变更列表
+     * @param commitMessage 提交信息
+     * @param debugCallback 调试信息回调
+     * @return 评估结果
+     */
+    suspend fun reviewCode(
+        changes: List<CodeChange>,
+        commitMessage: String,
+        debugCallback: AIDebugCallback?
+    ): CodeReviewResult
+
     /**
      * 获取服务名称
      */

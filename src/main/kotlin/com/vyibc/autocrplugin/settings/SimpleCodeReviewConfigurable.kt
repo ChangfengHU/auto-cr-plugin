@@ -21,6 +21,7 @@ class SimpleCodeReviewConfigurable : Configurable {
     private var settingsPanel: JPanel? = null
     private lateinit var enabledCheckBox: JBCheckBox
     private lateinit var minimumScoreField: JBTextField
+    private lateinit var cascadeDepthField: JBTextField
     private lateinit var promptTextArea: JBTextArea
 
     // AI服务配置
@@ -122,6 +123,14 @@ class SimpleCodeReviewConfigurable : Configurable {
         scorePanel.add(minimumScoreField)
         settingsPanel.add(scorePanel)
 
+        val cascadePanel = JPanel(FlowLayout(FlowLayout.LEFT))
+        cascadePanel.add(JLabel("方法级联分析深度 (1-5):"))
+        cascadeDepthField = JBTextField("2")
+        cascadeDepthField.preferredSize = Dimension(100, 25)
+        cascadeDepthField.toolTipText = "分析方法调用的级联深度，数值越大分析越深入但耗时越长"
+        cascadePanel.add(cascadeDepthField)
+        settingsPanel.add(cascadePanel)
+
         mainPanel.add(settingsPanel)
 
         mainPanel.add(Box.createVerticalStrut(20))
@@ -188,53 +197,56 @@ class SimpleCodeReviewConfigurable : Configurable {
      */
     private fun getDefaultPrompt(): String {
         return """
-请对以下代码变更进行专业的代码评估(Code Review)，重点关注生产环境安全性和最佳实践：
+🚨 **生产环境安全代码审查专家 - 严格风险评估标准**
 
-## 🔍 重点检查项目：
+**核心任务：基于方法实现中检测到的危险操作进行精确风险评估**
 
-### 🚨 生产环境危险操作
-- Redis危险命令：keys、flushdb、flushall、config等
-- 数据库全表扫描：select * without where、count(*)等
-- 阻塞操作：同步IO、长时间循环等
-- 资源泄漏：未关闭连接、内存泄漏等
+## 🔍 **风险评估方法论：**
 
-### 🔒 安全问题
-- SQL注入风险
-- XSS攻击风险
-- 敏感信息泄露（密码、token等）
-- 权限控制缺失
-- 输入验证不足
+### 第一步：危险操作检测分析
+**重点关注系统预检测标记的"已检测到潜在危险操作"，这些是自动化工具识别的高风险模式：**
+- 🚨 如标记为"Redis危险操作" → 分析具体影响和阻塞风险
+- 🚨 如标记为"SQL危险操作" → 分析查询性能和注入风险  
+- 🚨 如标记为"资源泄漏风险" → 分析内存和连接泄漏影响
+- 🚨 如标记为"阻塞操作" → 分析并发性能和响应时间影响
 
-### 📊 性能问题
-- N+1查询问题
-- 不必要的数据库查询
-- 低效的算法实现
-- 内存使用不当
-- 缓存使用不当
+### 第二步：生产环境影响评估
+**针对检测到的每种危险操作，评估其在高并发生产环境下的影响：**
+- **服务可用性影响** - 是否会导致服务不可用？
+- **性能影响程度** - 对系统整体性能的影响范围？
+- **故障传播风险** - 是否会引发连锁故障？
+- **恢复难度评估** - 故障后恢复的复杂度？
 
-### 🏗️ 代码质量
-- 代码重复
-- 方法过长或过于复杂
-- 命名不规范
-- 异常处理不当
-- 日志记录不足
+### 第三步：风险等级判定标准
+**基于影响程度确定风险等级：**
 
-### 🧪 测试覆盖
-- 缺少单元测试
-- 边界条件未测试
-- 异常情况未覆盖
+#### 🚨 CRITICAL (0-30分)：
+- 会导致服务完全不可用的操作
+- 可能引发系统宕机的风险
+- 影响所有用户的致命问题
+- 数据安全威胁
 
-## 📋 评估要求：
-1. 给出0-100的综合评分
-2. 标注风险等级：LOW/MEDIUM/HIGH/CRITICAL
-3. 列出具体问题和改进建议
-4. 特别标注生产环境风险项
+#### ⚠️ HIGH (31-60分)：
+- 严重影响性能但不至于宕机
+- 安全漏洞但影响范围有限
+- 需要紧急修复的问题
 
-请用中文回复，格式要求：
-- 总体评分：XX/100
-- 风险等级：XXX
-- 发现问题：X个
-- 详细分析：...
+#### 📊 MEDIUM (61-80分)：
+- 一般性能问题
+- 代码质量问题
+- 建议优化的改进点
+
+#### 💡 LOW (81-100分)：
+- 轻微改进建议
+- 最佳实践推荐
+- 代码规范问题
+
+## 🎯 **分析执行原则：**
+
+1. **基于事实评估** - 严格基于方法实现代码和检测到的危险操作进行评估
+2. **影响导向评估** - 重点关注对生产环境的实际影响程度
+3. **具体化建议** - 提供针对性的技术解决方案
+4. **严格等级标准** - 严格按照风险等级对应的评分范围给分
         """.trimIndent()
     }
 
@@ -248,6 +260,7 @@ class SimpleCodeReviewConfigurable : Configurable {
                 geminiEnabledCheckBox.isSelected != settings.geminiEnabled ||
                 String(geminiApiKeyField.password) != settings.geminiApiKey ||
                 minimumScoreField.text != settings.minimumScore.toString() ||
+                cascadeDepthField.text != settings.maxCascadeDepth.toString() ||
                 promptTextArea.text != settings.customPrompt
     }
 
@@ -266,6 +279,12 @@ class SimpleCodeReviewConfigurable : Configurable {
         } catch (e: NumberFormatException) {
             settings.minimumScore = 60
         }
+
+        try {
+            settings.maxCascadeDepth = cascadeDepthField.text.toInt().coerceIn(1, 5)
+        } catch (e: NumberFormatException) {
+            settings.maxCascadeDepth = 2
+        }
     }
 
     override fun reset() {
@@ -278,6 +297,7 @@ class SimpleCodeReviewConfigurable : Configurable {
         geminiEnabledCheckBox.isSelected = settings.geminiEnabled
         geminiApiKeyField.text = settings.geminiApiKey
         minimumScoreField.text = settings.minimumScore.toString()
+        cascadeDepthField.text = settings.maxCascadeDepth.toString()
 
         // 如果没有自定义提示词，显示默认提示词
         promptTextArea.text = if (settings.customPrompt.isNotEmpty()) {
