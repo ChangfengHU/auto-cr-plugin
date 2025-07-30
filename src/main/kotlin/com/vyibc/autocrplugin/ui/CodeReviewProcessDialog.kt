@@ -97,24 +97,24 @@ class CodeReviewProcessDialog(
 
     override fun createCenterPanel(): JComponent {
         val mainPanel = JPanel(BorderLayout())
-        
+
         // 创建选项卡面板
         tabbedPane = JTabbedPane()
-        
+
         // 代码变更选项卡
         tabbedPane.addTab("代码变更", createChangesPanel())
-        
+
         // 分析过程选项卡
         tabbedPane.addTab("分析过程", createProcessPanel())
-        
+
         // 评估结果选项卡
         tabbedPane.addTab("评估结果", createResultPanel())
-        
+
         mainPanel.add(tabbedPane, BorderLayout.CENTER)
-        
+
         // 底部状态面板
         mainPanel.add(createStatusPanel(), BorderLayout.SOUTH)
-        
+
         return mainPanel
     }
 
@@ -124,7 +124,7 @@ class CodeReviewProcessDialog(
     private fun createChangesPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        
+
         // 提交信息
         val commitPanel = JPanel(BorderLayout())
         commitPanel.border = BorderFactory.createTitledBorder("提交信息")
@@ -134,16 +134,16 @@ class CodeReviewProcessDialog(
         commitArea.wrapStyleWord = true
         commitArea.rows = 3
         commitPanel.add(JBScrollPane(commitArea), BorderLayout.CENTER)
-        
+
         panel.add(commitPanel, BorderLayout.NORTH)
-        
+
         // 变更文件表格
         val changesPanel = JPanel(BorderLayout())
         changesPanel.border = BorderFactory.createTitledBorder("变更文件 (${changes.size} 个文件)")
-        
+
         val columnNames = arrayOf("文件路径", "变更类型", "新增行数", "删除行数", "修改行数")
         val tableModel = DefaultTableModel(columnNames, 0)
-        
+
         changes.forEach { change ->
             tableModel.addRow(arrayOf(
                 change.filePath,
@@ -153,10 +153,10 @@ class CodeReviewProcessDialog(
                 change.modifiedLines.size.toString()
             ))
         }
-        
+
         changesTable = JBTable(tableModel)
         changesTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        
+
         // 设置列宽
         val columnModel = changesTable.columnModel
         columnModel.getColumn(0).preferredWidth = 300 // 文件路径
@@ -164,14 +164,14 @@ class CodeReviewProcessDialog(
         columnModel.getColumn(2).preferredWidth = 80  // 新增行数
         columnModel.getColumn(3).preferredWidth = 80  // 删除行数
         columnModel.getColumn(4).preferredWidth = 80  // 修改行数
-        
+
         changesTable.rowHeight = 25
-        
+
         val scrollPane = JBScrollPane(changesTable)
         changesPanel.add(scrollPane, BorderLayout.CENTER)
-        
+
         panel.add(changesPanel, BorderLayout.CENTER)
-        
+
         return panel
     }
 
@@ -181,15 +181,15 @@ class CodeReviewProcessDialog(
     private fun createProcessPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        
+
         processArea = JBTextArea()
         processArea.isEditable = false
         processArea.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
         processArea.text = "等待开始分析...\n"
-        
+
         val scrollPane = JBScrollPane(processArea)
         panel.add(scrollPane, BorderLayout.CENTER)
-        
+
         return panel
     }
 
@@ -199,46 +199,46 @@ class CodeReviewProcessDialog(
     private fun createResultPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        
+
         // 评分和风险等级显示
         val scorePanel = JPanel(GridBagLayout())
         scorePanel.border = BorderFactory.createTitledBorder("评估概览")
-        
+
         val gbc = GridBagConstraints()
         gbc.insets = Insets(10, 10, 10, 10)
-        
+
         // 评分
         gbc.gridx = 0
         gbc.gridy = 0
         gbc.anchor = GridBagConstraints.WEST
         scorePanel.add(JLabel("总体评分:"), gbc)
-        
+
         gbc.gridx = 1
         scoreLabel = JLabel("--/100")
         scoreLabel.font = scoreLabel.font.deriveFont(Font.BOLD, 18f)
         scorePanel.add(scoreLabel, gbc)
-        
+
         // 风险等级
         gbc.gridx = 2
         gbc.insets = Insets(10, 30, 10, 10)
         scorePanel.add(JLabel("风险等级:"), gbc)
-        
+
         gbc.gridx = 3
         riskLabel = JLabel("--")
         riskLabel.font = riskLabel.font.deriveFont(Font.BOLD, 18f)
         scorePanel.add(riskLabel, gbc)
-        
+
         panel.add(scorePanel, BorderLayout.NORTH)
-        
+
         // 详细结果区域（稍后填充）
         val resultArea = JBTextArea("等待评估结果...")
         resultArea.isEditable = false
         resultArea.lineWrap = true
         resultArea.wrapStyleWord = true
-        
+
         val resultScrollPane = JBScrollPane(resultArea)
         panel.add(resultScrollPane, BorderLayout.CENTER)
-        
+
         return panel
     }
 
@@ -248,20 +248,20 @@ class CodeReviewProcessDialog(
     private fun createStatusPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        
+
         // 进度条和状态
         val progressPanel = JPanel(BorderLayout())
-        
+
         statusLabel = JLabel("准备开始分析...")
         progressPanel.add(statusLabel, BorderLayout.NORTH)
-        
+
         progressBar = JProgressBar(0, 100)
         progressBar.isStringPainted = true
         progressBar.string = "0%"
         progressPanel.add(progressBar, BorderLayout.CENTER)
-        
+
         panel.add(progressPanel, BorderLayout.CENTER)
-        
+
         return panel
     }
 
@@ -274,7 +274,7 @@ class CodeReviewProcessDialog(
             appendProcess("=== 代码评估开始 ===\n")
             appendProcess("提交信息: $commitMessage\n")
             appendProcess("变更文件数量: ${changes.size}\n\n")
-            
+
             // 显示变更详情
             appendProcess("=== 代码变更详情 ===\n")
             changes.forEach { change ->
@@ -283,7 +283,7 @@ class CodeReviewProcessDialog(
                 appendProcess("  新增行数: ${change.addedLines.size}\n")
                 appendProcess("  删除行数: ${change.removedLines.size}\n")
                 appendProcess("  修改行数: ${change.modifiedLines.size}\n")
-                
+
                 // 显示部分代码内容
                 if (change.addedLines.isNotEmpty()) {
                     appendProcess("  新增代码片段:\n")
@@ -296,36 +296,36 @@ class CodeReviewProcessDialog(
                 }
                 appendProcess("\n")
             }
-            
+
             updateProgress(30, "准备AI分析...")
             appendProcess("=== AI分析准备 ===\n")
             appendProcess("使用AI服务: ${codeReviewService.getServiceName()}\n")
             appendProcess("构建分析提示词...\n")
-            
+
             // 在后台线程执行AI分析
             Thread {
                 try {
                     updateProgress(50, "AI正在分析代码...")
                     appendProcess("发送请求到AI服务...\n")
-                    
+
                     // 模拟分析过程
                     Thread.sleep(2000)
-                    
+
                     updateProgress(70, "处理AI响应...")
                     appendProcess("收到AI响应，正在解析...\n")
-                    
+
                     // 执行实际的代码评估
                     val result = kotlinx.coroutines.runBlocking {
                         codeReviewService.reviewCode(changes, commitMessage)
                     }
-                    
+
                     updateProgress(90, "生成评估报告...")
                     appendProcess("=== 评估结果 ===\n")
                     appendProcess("总体评分: ${result.overallScore}/100\n")
                     appendProcess("风险等级: ${getRiskLevelText(result.riskLevel)}\n")
                     appendProcess("发现问题: ${result.issues.size} 个\n")
                     appendProcess("改进建议: ${result.suggestions.size} 条\n\n")
-                    
+
                     // 显示问题详情
                     if (result.issues.isNotEmpty()) {
                         appendProcess("=== 发现的问题 ===\n")
@@ -341,27 +341,27 @@ class CodeReviewProcessDialog(
                             appendProcess("\n")
                         }
                     }
-                    
+
                     updateProgress(100, "评估完成")
                     appendProcess("=== 评估完成 ===\n")
-                    
+
                     SwingUtilities.invokeLater {
                         reviewResult = result
                         updateResultDisplay(result)
-                        
+
                         // 检查是否可以提交
                         val settings = com.vyibc.autocrplugin.settings.CodeReviewSettings.getInstance()
                         canCommit = checkCanCommit(result, settings)
-                        
+
                         if (canCommit) {
                             appendProcess("✅ 代码质量符合要求，可以提交\n")
                         } else {
                             appendProcess("❌ 代码质量不符合要求，建议修复后再提交\n")
                         }
-                        
+
                         onComplete(canCommit, result)
                     }
-                    
+
                 } catch (e: Exception) {
                     SwingUtilities.invokeLater {
                         updateProgress(0, "评估失败")
@@ -401,7 +401,7 @@ class CodeReviewProcessDialog(
         // 更新评分显示
         scoreLabel.text = "${result.overallScore}/100"
         scoreLabel.foreground = getScoreColor(result.overallScore)
-        
+
         // 更新风险等级显示
         riskLabel.text = getRiskLevelText(result.riskLevel)
         riskLabel.foreground = getRiskColor(result.riskLevel)
@@ -415,7 +415,7 @@ class CodeReviewProcessDialog(
         if (result.overallScore < settings.minimumScore) {
             return false
         }
-        
+
         // 检查是否有严重风险
         if (settings.blockHighRiskCommits) {
             when (result.riskLevel) {
@@ -423,13 +423,13 @@ class CodeReviewProcessDialog(
                 else -> {}
             }
         }
-        
+
         // 检查是否有严重问题
         val criticalIssues = result.issues.filter { it.severity == IssueSeverity.CRITICAL }
         if (criticalIssues.isNotEmpty()) {
             return false
         }
-        
+
         return true
     }
 
@@ -468,9 +468,46 @@ class CodeReviewProcessDialog(
 
         val commitAction = object : AbstractAction("提交代码") {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
-                if (canCommit && reviewResult != null) {
+                if (reviewResult == null) {
+                    com.intellij.openapi.ui.Messages.showWarningDialog(
+                        project,
+                        "请先完成代码分析后再提交",
+                        "无法提交"
+                    )
+                    return
+                }
+
+                // 检查分数是否达到阈值
+                val settings = com.vyibc.autocrplugin.settings.CodeReviewSettings.getInstance()
+                val result = reviewResult!!
+                if (result.overallScore < settings.minimumScore) {
+                    val message = """
+                        ⚠️ 代码质量不达标，无法提交
+                        
+                        当前评分: ${result.overallScore}/100
+                        最低要求: ${settings.minimumScore}/100
+                        差距: ${settings.minimumScore - result.overallScore}分
+                        
+                        请修复代码质量问题后再次提交。
+                    """.trimIndent()
+
+                    com.intellij.openapi.ui.Messages.showWarningDialog(
+                        project,
+                        message,
+                        "评分不达标"
+                    )
+                    return
+                }
+
+                if (canCommit) {
                     // 直接执行Git提交，不需要确认对话框
                     performGitCommitDirect()
+                } else {
+                    com.intellij.openapi.ui.Messages.showWarningDialog(
+                        project,
+                        "代码存在严重质量问题，无法提交",
+                        "无法提交"
+                    )
                 }
             }
         }
@@ -1045,9 +1082,30 @@ class CodeReviewProcessDialog(
      */
     private fun getGitRepositoryRoot(): java.io.File? {
         return try {
-            // 从当前工作目录开始向上查找.git目录
-            var currentDir = java.io.File(System.getProperty("user.dir"))
+            // 方法1: 优先从项目根目录查找
+            val projectBasePath = project?.basePath
+            if (projectBasePath != null) {
+                val projectDir = java.io.File(projectBasePath)
+                val gitDir = java.io.File(projectDir, ".git")
+                if (gitDir.exists()) {
+                    return projectDir
+                }
+            }
 
+            // 方法2: 如果变更文件存在，从第一个变更文件的路径向上查找
+            if (changes.isNotEmpty()) {
+                var fileDir = java.io.File(changes.first().filePath).parentFile
+                while (fileDir != null && fileDir.exists()) {
+                    val gitDir = java.io.File(fileDir, ".git")
+                    if (gitDir.exists()) {
+                        return fileDir
+                    }
+                    fileDir = fileDir.parentFile
+                }
+            }
+
+            // 方法3: 从当前工作目录开始向上查找.git目录
+            var currentDir = java.io.File(System.getProperty("user.dir"))
             while (currentDir != null && currentDir.exists()) {
                 val gitDir = java.io.File(currentDir, ".git")
                 if (gitDir.exists()) {
@@ -1056,7 +1114,7 @@ class CodeReviewProcessDialog(
                 currentDir = currentDir.parentFile
             }
 
-            // 如果没找到，尝试使用git命令获取
+            // 方法4: 如果没找到，尝试使用git命令获取
             val processBuilder = ProcessBuilder("git", "rev-parse", "--show-toplevel")
             processBuilder.directory(java.io.File(System.getProperty("user.dir")))
 
@@ -1193,7 +1251,7 @@ class CodeReviewProcessDialog(
             prompt.append("\n---\n\n")
         }
 
-        // 添加方法调用分析结果  
+        // 添加方法调用分析结果
         val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
         val methodCalls = methodAnalyzer.analyzeMethodCalls(changes)
 
@@ -1376,14 +1434,14 @@ class CodeReviewProcessDialog(
             RiskLevel.CRITICAL -> Color(220, 20, 60) // 红色
         }
     }
-    
+
     /**
      * 递归地添加方法实现到提示中（包含级联方法）
      */
     private fun appendMethodImplementation(prompt: StringBuilder, impl: MethodImplementation, level: Int) {
         val indent = "  ".repeat(level - 1)
         val levelPrefix = if (level == 1) "###" else "#".repeat(3 + level)
-        
+
         prompt.append("$levelPrefix ${indent}方法: ${impl.className}.${impl.methodName}()\n")
         prompt.append("${indent}实现文件: ${impl.filePath}\n\n")
         prompt.append("${indent}方法实现代码:\n")
@@ -1397,7 +1455,7 @@ class CodeReviewProcessDialog(
                 // 根据危险操作类型确定严重程度标识
                 val severity = when {
                     danger.contains("Redis") && (danger.contains("keys()") || danger.contains("模式匹配")) -> "🚨 CRITICAL"
-                    danger.contains("SQL") && danger.contains("全表") -> "🚨 CRITICAL" 
+                    danger.contains("SQL") && danger.contains("全表") -> "🚨 CRITICAL"
                     danger.contains("Redis") -> "⚠️ HIGH"
                     danger.contains("SQL") -> "⚠️ HIGH"
                     danger.contains("资源") || danger.contains("泄漏") -> "⚠️ HIGH"
@@ -1408,7 +1466,7 @@ class CodeReviewProcessDialog(
             }
             prompt.append("${indent}**⚠️ 请基于上述预检测结果进行详细的风险等级评估和解决方案制定**\n\n")
         }
-        
+
         // 递归添加级联方法
         if (impl.cascadedMethods.isNotEmpty()) {
             prompt.append("${indent}**级联调用的方法:**\n\n")
@@ -1419,21 +1477,21 @@ class CodeReviewProcessDialog(
 
         prompt.append("${indent}---\n\n")
     }
-    
+
     /**
      * 递归地添加方法调用信息到处理过程显示（包含级联方法）
      */
     private fun appendMethodCallToProcess(call: MethodCallInfo, level: Int) {
         appendImplementationToProcess(call.implementation, level, call.callerLine)
     }
-    
+
     /**
      * 递归地添加方法实现信息到处理过程显示
      */
     private fun appendImplementationToProcess(impl: MethodImplementation, level: Int, callerLine: String? = null) {
         val indent = "  ".repeat(level - 1)
         val bullet = if (level == 1) "•" else "→"
-        
+
         appendProcess("${indent}${bullet} ${impl.className}.${impl.methodName}()\n")
         if (callerLine != null && level == 1) {
             appendProcess("${indent}  调用位置: $callerLine\n")
@@ -1443,7 +1501,7 @@ class CodeReviewProcessDialog(
         if (impl.containsDangerousOperations.isNotEmpty()) {
             appendProcess("${indent}  ⚠️ 危险操作: ${impl.containsDangerousOperations.joinToString(", ")}\n")
         }
-        
+
         // 递归显示级联方法
         if (impl.cascadedMethods.isNotEmpty()) {
             appendProcess("${indent}  级联调用:\n")

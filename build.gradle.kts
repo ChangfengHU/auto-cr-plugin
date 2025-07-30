@@ -24,7 +24,7 @@ intellij {
     version.set("2024.2.5") // 使用稳定版本
     type.set("IC") // IntelliJ IDEA Community Edition
 
-    plugins.set(listOf("vcs-git"))
+    plugins.set(listOf("vcs-git","java"))
 }
 
 tasks {
