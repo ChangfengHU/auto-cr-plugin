@@ -120,22 +120,28 @@ class MethodCallAnalyzer(
      * 智能判断是否需要分析该方法调用
      */
     private fun shouldAnalyzeMethodCall(className: String, methodName: String, codeLine: String): Boolean {
+        debugCallback?.invoke("🔍 判断是否分析方法: $className.$methodName")
+        
         // 1. 排除常见的不重要方法调用
         if (isExcludedMethod(className, methodName)) {
+            debugCallback?.invoke("❌ 排除方法: $className.$methodName (属于排除列表)")
             return false
         }
 
         // 2. 优先分析可能有风险的方法调用
         if (isPotentiallyDangerousCall(className, methodName, codeLine)) {
+            debugCallback?.invoke("✅ 包含方法: $className.$methodName (潜在危险调用)")
             return true
         }
 
         // 3. 检查是否为注入的服务类调用
         if (isInjectedServiceCall(className)) {
+            debugCallback?.invoke("✅ 包含方法: $className.$methodName (注入的服务类)")
             return true
         }
 
         // 4. 默认跳过其他方法调用
+        debugCallback?.invoke("❌ 跳过方法: $className.$methodName (不符合任何条件)")
         return false
     }
 
@@ -143,8 +149,14 @@ class MethodCallAnalyzer(
      * 检查是否为排除的方法类型
      */
     private fun isExcludedMethod(className: String, methodName: String): Boolean {
-        // 排除 getter/setter 方法
-        if (methodName.startsWith("get") || methodName.startsWith("set") || methodName.startsWith("is")) {
+        // 排除简单的 getter/setter 方法，但保留可能有业务逻辑的方法
+        if (methodName.startsWith("get") && methodName.length <= 15 && !methodName.contains("All") && !methodName.contains("By")) {
+            return true
+        }
+        if (methodName.startsWith("set") && methodName.length <= 15) {
+            return true
+        }
+        if (methodName.startsWith("is") && methodName.length <= 10) {
             return true
         }
 
@@ -184,9 +196,15 @@ class MethodCallAnalyzer(
             return true
         }
 
-        // 缓存/Redis 相关类
-        val cacheClasses = listOf("cache", "redis", "Cache", "Redis")
+        // 缓存/Redis 相关类（包括变量名）
+        val cacheClasses = listOf("cache", "redis", "Cache", "Redis", "redisUtils", "cacheUtils")
         if (cacheClasses.any { className.contains(it, ignoreCase = true) }) {
+            return true
+        }
+        
+        // 特殊处理：包含 Value、Key、Cache 等关键词的方法名
+        val cacheMethodKeywords = listOf("value", "key", "cache", "redis", "get", "set", "put", "remove")
+        if (cacheMethodKeywords.any { methodName.contains(it, ignoreCase = true) }) {
             return true
         }
 
