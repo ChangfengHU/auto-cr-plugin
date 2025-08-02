@@ -114,22 +114,22 @@ class GitChangeAnalyzer(private val project: Project) {
         val removedLines = mutableListOf<String>()
         val modifiedLines = mutableListOf<Pair<String, String>>()
 
-        // 使用更智能的diff算法
+        // 使用基于LCS的精确diff算法
         val diff = computeDiff(oldLines, newLines)
 
         for (change in diff) {
             when (change.type) {
                 DiffType.ADDED -> {
-                    // 过滤掉空行和只有空格的行
-                    val line = change.line.trim()
-                    if (line.isNotEmpty()) {
-                        addedLines.add(change.line)
+                    // 更宽松的过滤策略：只过滤完全空的行，保留有意义的空白字符变更
+                    val line = change.line
+                    if (line.isNotBlank() || (line.isBlank() && line.isNotEmpty())) {
+                        addedLines.add(line)
                     }
                 }
                 DiffType.REMOVED -> {
-                    val line = change.line.trim()
-                    if (line.isNotEmpty()) {
-                        removedLines.add(change.line)
+                    val line = change.line
+                    if (line.isNotBlank() || (line.isBlank() && line.isNotEmpty())) {
+                        removedLines.add(line)
                     }
                 }
                 DiffType.MODIFIED -> {
@@ -145,29 +145,80 @@ class GitChangeAnalyzer(private val project: Project) {
 
     /**
      * 计算两个文件的差异
+     * 使用改进的逐行比较算法，避免Set去重导致的问题
      */
     private fun computeDiff(oldLines: List<String>, newLines: List<String>): List<DiffChange> {
         val changes = mutableListOf<DiffChange>()
-
-        // 使用简化的LCS算法来找出真正的变更
-        val oldSet = oldLines.toSet()
-        val newSet = newLines.toSet()
-
-        // 找出新增的行
-        newLines.forEachIndexed { index, line ->
-            if (!oldSet.contains(line)) {
-                changes.add(DiffChange(DiffType.ADDED, line, null, index))
+        
+        // 使用动态规划算法计算最长公共子序列(LCS)
+        val lcs = computeLCS(oldLines, newLines)
+        
+        var oldIndex = 0
+        var newIndex = 0
+        var lcsIndex = 0
+        
+        while (oldIndex < oldLines.size || newIndex < newLines.size) {
+            if (lcsIndex < lcs.size && 
+                oldIndex < oldLines.size && 
+                newIndex < newLines.size &&
+                oldLines[oldIndex] == lcs[lcsIndex] && 
+                newLines[newIndex] == lcs[lcsIndex]) {
+                // 这行没有变化
+                oldIndex++
+                newIndex++
+                lcsIndex++
+            } else if (oldIndex < oldLines.size && 
+                      (lcsIndex >= lcs.size || oldLines[oldIndex] != lcs[lcsIndex])) {
+                // 删除的行
+                changes.add(DiffChange(DiffType.REMOVED, oldLines[oldIndex], null, oldIndex))
+                oldIndex++
+            } else if (newIndex < newLines.size) {
+                // 新增的行
+                changes.add(DiffChange(DiffType.ADDED, newLines[newIndex], null, newIndex))
+                newIndex++
             }
         }
-
-        // 找出删除的行
-        oldLines.forEachIndexed { index, line ->
-            if (!newSet.contains(line)) {
-                changes.add(DiffChange(DiffType.REMOVED, line, null, index))
-            }
-        }
-
+        
         return changes
+    }
+    
+    /**
+     * 计算最长公共子序列
+     */
+    private fun computeLCS(oldLines: List<String>, newLines: List<String>): List<String> {
+        val m = oldLines.size
+        val n = newLines.size
+        val dp = Array(m + 1) { IntArray(n + 1) }
+        
+        // 填充DP表
+        for (i in 1..m) {
+            for (j in 1..n) {
+                if (oldLines[i - 1] == newLines[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                } else {
+                    dp[i][j] = maxOf(dp[i - 1][j], dp[i][j - 1])
+                }
+            }
+        }
+        
+        // 回溯构建LCS
+        val lcs = mutableListOf<String>()
+        var i = m
+        var j = n
+        
+        while (i > 0 && j > 0) {
+            if (oldLines[i - 1] == newLines[j - 1]) {
+                lcs.add(0, oldLines[i - 1])
+                i--
+                j--
+            } else if (dp[i - 1][j] > dp[i][j - 1]) {
+                i--
+            } else {
+                j--
+            }
+        }
+        
+        return lcs
     }
 
     /**

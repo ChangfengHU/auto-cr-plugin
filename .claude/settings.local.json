@@ -6,7 +6,8 @@
       "Bash(git push:*)",
       "mcp__ide__getDiagnostics",
       "Bash(find:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(./gradlew:*)"
     ],
     "deny": []
   }
