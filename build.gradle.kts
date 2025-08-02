@@ -16,6 +16,9 @@ dependencies {
     // 添加Gson依赖用于JSON解析
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // 添加JGraphT核心库用于图分析
+    implementation("org.jgrapht:jgrapht-core:1.5.2")
+
     // 注意：Kotlin协程已经包含在IntelliJ Platform中，不需要显式添加
 }
 
