@@ -114,7 +114,8 @@ class GitChangeAnalyzer(private val project: Project) {
         val removedLines = mutableListOf<String>()
         val modifiedLines = mutableListOf<Pair<String, String>>()
 
-        // 使用基于LCS的精确diff算法
+        // 使用基于最长公共子序列(LCS)的精确diff算法
+        // 这个算法可以准确地识别出哪些行是新增的，哪些行是删除的
         val diff = computeDiff(oldLines, newLines)
 
         for (change in diff) {
@@ -240,15 +241,22 @@ class GitChangeAnalyzer(private val project: Project) {
 
 /**
  * 差异类型
+ * 用于标识每一行的变化类型
  */
 enum class DiffType {
-    ADDED,      // 新增行
-    REMOVED,    // 删除行
-    MODIFIED    // 修改行
+    ADDED,      // 新增行：在新文件中存在，但在旧文件中不存在
+    REMOVED,    // 删除行：在旧文件中存在，但在新文件中不存在
+    MODIFIED    // 修改行：在两个文件中都存在但内容不同（当前算法中未使用）
 }
 
 /**
- * 差异变更
+ * 差异变更数据结构
+ * 记录每一个检测到的变更
+ * 
+ * @param type 变更类型（新增/删除/修改）
+ * @param line 当前行的内容
+ * @param oldLine 旧行的内容（仅在MODIFIED类型中使用）
+ * @param lineNumber 行号（在原文件中的位置）
  */
 data class DiffChange(
     val type: DiffType,
