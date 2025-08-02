@@ -588,15 +588,22 @@ class CodeReviewProcessDialog(
                     }
                 }
 
-                // 分析方法调用
+                // 分析方法调用（根据级联深度配置）
                 appendProcess("\n=== 🔍 方法调用分析 ===\n")
                 val settings = com.vyibc.autocrplugin.settings.CodeReviewSettings.getInstance()
-                val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
-                methodAnalyzer.debugCallback = { message ->
-                    appendProcess("  $message\n")
-                }
-                val methodCalls = methodAnalyzer.analyzeMethodCalls(changes)
 
+                val methodCalls = if (settings.maxCascadeDepth > 0) {
+                    appendProcess("级联分析深度: ${settings.maxCascadeDepth}层\n")
+                    val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
+                    methodAnalyzer.debugCallback = { message ->
+                        appendProcess("  $message\n")
+                    }
+                    methodAnalyzer.analyzeMethodCalls(changes)
+                } else {
+                    appendProcess("级联分析深度设置为0，跳过方法调用分析\n")
+                    appendProcess("仅分析用户当前修改的代码内容\n")
+                    emptyList()
+                }
                 if (methodCalls.isNotEmpty()) {
                     appendProcess("发现 ${methodCalls.size} 个方法调用需要深度分析:\n")
                     appendProcess("⚠️ 以下方法实现将发送给AI进行安全评估：\n\n")
@@ -604,9 +611,11 @@ class CodeReviewProcessDialog(
                         appendMethodCallToProcess(call, 1)
                     }
                     appendProcess("\n💡 提示：级联调用显示了方法内部调用的其他方法，帮助发现深层安全风险\n")
-                } else {
+                } else if (settings.maxCascadeDepth > 0) {
                     appendProcess("未发现需要特别关注的方法调用\n")
                     appendProcess("💡 这意味着代码变更主要是简单的逻辑修改，没有复杂的方法调用链\n")
+                } else {
+                    appendProcess("💡 当前仅分析用户修改的代码，如需深度分析方法调用，请在设置中调整级联深度(1-3)\n")
                 }
                 appendProcess("\n")
 
@@ -1251,9 +1260,17 @@ class CodeReviewProcessDialog(
             prompt.append("\n---\n\n")
         }
 
-        // 添加方法调用分析结果
-        val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
-        val methodCalls = methodAnalyzer.analyzeMethodCalls(changes)
+        // 添加方法调用分析结果（根据配置决定是否进行级联分析）
+        val methodCalls = if (settings.maxCascadeDepth > 0) {
+            appendProcess("🔍 开始方法实现分析（深度：${settings.maxCascadeDepth}层）...\n")
+            val methodAnalyzer = MethodCallAnalyzer(project!!, maxCascadeDepth = settings.maxCascadeDepth)
+            val calls = methodAnalyzer.analyzeMethodCalls(changes)
+            appendProcess("✅ 方法实现分析完成，找到 ${calls.size} 个相关方法\n")
+            calls
+        } else {
+            appendProcess("⚪ 级联深度设置为0，跳过方法实现分析，仅评估当前修改的代码\n")
+            emptyList()
+        }
 
         if (methodCalls.isNotEmpty()) {
             prompt.append("## 🔍 **方法实现安全分析**\n\n")
@@ -1315,7 +1332,7 @@ class CodeReviewProcessDialog(
     "生产环境优化和监控建议"
   ],
   "summary": "基于系统预检测的危险操作进行风险评估，详细说明对生产环境的影响和修复紧急程度",
-  "commitMessage": "根据实际检测到的问题生成相应的提交信息"
+  "commitMessage": "按照规范格式生成提交信息: type(scope): description\n\n- 详细变更说明1\n- 详细变更说明2"
 }
 ```
 
@@ -1325,6 +1342,12 @@ class CodeReviewProcessDialog(
 - severity: 必须是 CRITICAL|MAJOR|MINOR|INFO 之一  
 - 如果发现任何Redis keys()、数据库全表扫描等问题，riskLevel必须是CRITICAL
 - issues数组必须包含发现的所有问题，包括方法实现中的问题
+- **commitMessage格式规范：**
+  - 第一行：type(scope): 简短描述 (不超过50字符)
+  - 空行
+  - 详细说明：以"-"开头的项目列表，每项描述具体变更
+  - type类型：feat(新功能)|fix(修复)|docs(文档)|style(格式)|refactor(重构)|perf(性能)|test(测试)|chore(构建)
+  - scope范围：settings|ui|service|analyzer|core等
 - 请确保返回有效的JSON格式
         """.trimIndent())
 

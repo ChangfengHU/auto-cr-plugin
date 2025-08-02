@@ -124,7 +124,7 @@ class SimpleCodeReviewConfigurable : Configurable {
         settingsPanel.add(scorePanel)
 
         val cascadePanel = JPanel(FlowLayout(FlowLayout.LEFT))
-        cascadePanel.add(JLabel("方法级联分析深度 (1-5):"))
+        cascadePanel.add(JLabel("方法级联分析深度 (0-3):"))
         cascadeDepthField = JBTextField("1")
         cascadeDepthField.preferredSize = Dimension(100, 25)
         cascadeDepthField.toolTipText = "分析方法调用的级联深度，数值越大分析越深入但耗时越长"
@@ -281,7 +281,7 @@ class SimpleCodeReviewConfigurable : Configurable {
         }
 
         try {
-            settings.maxCascadeDepth = cascadeDepthField.text.toInt().coerceIn(1, 5)
+            settings.maxCascadeDepth = cascadeDepthField.text.toInt().coerceIn(0, 3)
         } catch (e: NumberFormatException) {
             settings.maxCascadeDepth = 1
         }
