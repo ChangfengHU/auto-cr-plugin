@@ -2,6 +2,7 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.25"
     id("org.jetbrains.intellij") version "1.17.4"
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.25"
 }
 
 group = "com.vyibc"
@@ -18,6 +19,26 @@ dependencies {
 
     // 添加JGraphT核心库用于图分析
     implementation("org.jgrapht:jgrapht-core:1.5.2")
+    
+    // Apache TinkerGraph - 嵌入式图数据库
+    implementation("org.apache.tinkerpop:tinkergraph-gremlin:3.6.2")
+    
+    // Caffeine - 高性能缓存库
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    
+    // Neo4j驱动 (可选，用于可视化)
+    implementation("org.neo4j.driver:neo4j-java-driver:5.13.0")
+    
+    // OkHttp - 用于AI服务HTTP调用
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    
+    // Jackson - 用于高级JSON/YAML处理
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.3")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.3")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.3")
+    
+    // Kotlinx Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     // 注意：Kotlin协程已经包含在IntelliJ Platform中，不需要显式添加
 }
@@ -27,7 +48,7 @@ intellij {
     version.set("2024.2.5") // 使用稳定版本
     type.set("IC") // IntelliJ IDEA Community Edition
 
-    plugins.set(listOf("vcs-git","java"))
+    plugins.set(listOf("vcs-git", "java", "Git4Idea"))
 }
 
 tasks {

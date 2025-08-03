@@ -30,6 +30,7 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.vcs</depends>
     <depends>com.intellij.modules.java</depends>
+    <depends>Git4Idea</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
@@ -51,11 +52,26 @@
         <applicationService serviceImplementation="com.vyibc.autocrplugin.settings.TranslationSettings"/>
         <applicationService serviceImplementation="com.vyibc.autocrplugin.settings.CodeReviewSettings"/>
 
+        <!-- AutoCR工具窗口 -->
+        <toolWindow id="AutoCR"
+                    anchor="bottom"
+                    factoryClass="com.vyibc.autocrplugin.ui.AutoCRToolWindowFactory"
+                    secondary="false"/>
 
     </extensions>
 
     <!-- Actions -->
     <actions>
+        <!-- AutoCR V5.1 Action -->
+        <action id="com.vyibc.autocrplugin.action.AutoCRAction"
+                class="com.vyibc.autocrplugin.action.AutoCRAction"
+                text="AutoCR - AI Code Review"
+                description="AI-powered code review with dual-flow analysis">
+            <add-to-group group-id="ToolsMenu" anchor="first"/>
+            <add-to-group group-id="VcsGroups" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift C"/>
+        </action>
+
         <!-- 翻译Action -->
         <action id="com.vyibc.autocrplugin.action.TranslateAction"
                 class="com.vyibc.autocrplugin.action.TranslateAction"
@@ -139,6 +155,17 @@
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="ConsoleEditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt C"/>
+        </action>
+
+        <!-- 集成分析Action -->
+        <action id="com.vyibc.autocrplugin.action.StartIntegratedAnalysisAction"
+                class="com.vyibc.autocrplugin.action.StartIntegratedAnalysisAction"
+                text="开始集成分析"
+                description="启动V5.1意图权重和风险权重分析">
+            <add-to-group group-id="ToolsMenu" anchor="first"/>
+            <add-to-group group-id="VcsGroups" anchor="first"/>
+            <add-to-group group-id="ChangesViewToolbar" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift I"/>
         </action>
 
         <!-- 插件状态检查Action -->
